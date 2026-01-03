@@ -42,6 +42,8 @@ const phaseSlider = document.getElementById("phase");
 
 let audioCtx, analyser, data;
 
+let smoothY = 0;
+
 button.onclick = async () => {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -63,22 +65,23 @@ function drawXY() {
 
   analyser.getByteTimeDomainData(data);
 
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "lime";
 
-  const phase = Number(phaseSlider.value);
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
-  const scale = 2.5;
+  const scale = 3;
 
   for (let i = 0; i < data.length; i++) {
     const xSample = data[i] - 128;
-    const ySample = data[(i + phase) % data.length] - 128;
+
+    // simple low-pass filter
+    smoothY += (xSample - smoothY) * 0.05;
 
     const x = cx + xSample * scale;
-    const y = cy + ySample * scale;
+    const y = cy + smoothY * scale;
 
     ctx.fillRect(x, y, 1, 1);
   }
