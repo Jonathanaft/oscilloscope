@@ -14,7 +14,7 @@
     border: 1px solid lime;
     margin-top: 10px;
   }
-  input, button {
+  input, button, label {
     background: black;
     color: lime;
     border: 1px solid lime;
@@ -25,16 +25,18 @@
 </head>
 <body>
 
-<h1>🎵 Mono XY Oscilloscope</h1>
+<h1>🎵 Jonathan's Online Oscilloscope</h1>
 
 <input type="file" id="file" accept="audio/*">
 <button id="play">Play</button>
+<label>Phase Offset: <input type="range" id="phase" min="1" max="256" value="32"></label>
 
 <canvas id="scope" width="600" height="600"></canvas>
 
 <script>
 const fileInput = document.getElementById("file");
 const playBtn = document.getElementById("play");
+const phaseSlider = document.getElementById("phase");
 const canvas = document.getElementById("scope");
 const ctx = canvas.getContext("2d");
 
@@ -42,10 +44,11 @@ let audioCtx;
 let source;
 let analyser;
 let data;
-let smooth = 0;
+let phase = 32;
 
 playBtn.onclick = async () => {
   if (!fileInput.files.length) return;
+  phase = Number(phaseSlider.value);
 
   if (!audioCtx)
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -72,6 +75,10 @@ playBtn.onclick = async () => {
   draw();
 };
 
+phaseSlider.oninput = () => {
+  phase = Number(phaseSlider.value);
+};
+
 function draw() {
   requestAnimationFrame(draw);
 
@@ -85,19 +92,13 @@ function draw() {
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
   const scale = 3;
+  const len = data.length;
 
-  for (let i = 0; i < data.length; i++) {
+  for (let i = 0; i < len; i++) {
     const x = data[i] - 128;
+    const y = data[(i + phase) % len] - 128;
 
-    // derived Y axis (integrator)
-    smooth += (x - smooth) * 0.08;
-
-    ctx.fillRect(
-      cx + x * scale,
-      cy + smooth * scale,
-      1,
-      1
-    );
+    ctx.fillRect(cx + x * scale, cy + y * scale, 1, 1);
   }
 }
 </script>
