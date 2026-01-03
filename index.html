@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>XY Oscilloscope Player</title>
+<title>Mono XY Oscilloscope</title>
 <style>
   body {
     background: black;
@@ -21,20 +21,14 @@
     padding: 6px;
     margin: 5px;
   }
-  #status {
-    margin-top: 8px;
-    font-size: 14px;
-  }
-  .warn { color: orange; }
 </style>
 </head>
 <body>
 
-<h1>🎵 XY Oscilloscope (Audio File)</h1>
+<h1>🎵 Mono XY Oscilloscope</h1>
 
 <input type="file" id="file" accept="audio/*">
 <button id="play">Play</button>
-<div id="status"></div>
 
 <canvas id="scope" width="600" height="600"></canvas>
 
@@ -43,15 +37,12 @@ const fileInput = document.getElementById("file");
 const playBtn = document.getElementById("play");
 const canvas = document.getElementById("scope");
 const ctx = canvas.getContext("2d");
-const status = document.getElementById("status");
 
 let audioCtx;
 let source;
-let analyserL, analyserR;
-let monoAnalyser;
-let dataL, dataR, dataMono;
-let isStereo = false;
-let smoothY = 0;
+let analyser;
+let data;
+let smooth = 0;
 
 playBtn.onclick = async () => {
   if (!fileInput.files.length) return;
@@ -63,46 +54,30 @@ playBtn.onclick = async () => {
   const arrayBuffer = await file.arrayBuffer();
   const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-  isStereo = audioBuffer.numberOfChannels >= 2;
-
-  status.innerHTML = isStereo
-    ? "✅ Stereo file detected — true XY mode"
-    : "⚠️ Mono file detected — derived XY mode";
-  status.className = isStereo ? "" : "warn";
-
   if (source) source.disconnect();
 
   source = audioCtx.createBufferSource();
   source.buffer = audioBuffer;
 
-  if (isStereo) {
-    const splitter = audioCtx.createChannelSplitter(2);
-    analyserL = audioCtx.createAnalyser();
-    analyserR = audioCtx.createAnalyser();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0;
 
-    analyserL.fftSize = analyserR.fftSize = 2048;
-    dataL = new Uint8Array(analyserL.fftSize);
-    dataR = new Uint8Array(analyserR.fftSize);
+  data = new Uint8Array(analyser.fftSize);
 
-    source.connect(splitter);
-    splitter.connect(analyserL, 0);
-    splitter.connect(analyserR, 1);
-  } else {
-    monoAnalyser = audioCtx.createAnalyser();
-    monoAnalyser.fftSize = 2048;
-    dataMono = new Uint8Array(monoAnalyser.fftSize);
-    source.connect(monoAnalyser);
-  }
-
+  source.connect(analyser);
   source.connect(audioCtx.destination);
   source.start();
+
   draw();
 };
 
 function draw() {
   requestAnimationFrame(draw);
 
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  analyser.getByteTimeDomainData(data);
+
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "lime";
@@ -111,26 +86,18 @@ function draw() {
   const cy = canvas.height / 2;
   const scale = 3;
 
-  if (isStereo) {
-    analyserL.getByteTimeDomainData(dataL);
-    analyserR.getByteTimeDomainData(dataR);
+  for (let i = 0; i < data.length; i++) {
+    const x = data[i] - 128;
 
-    for (let i = 0; i < dataL.length; i++) {
-      const x = cx + (dataL[i] - 128) * scale;
-      const y = cy + (dataR[i] - 128) * scale;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  } else {
-    monoAnalyser.getByteTimeDomainData(dataMono);
+    // derived Y axis (integrator)
+    smooth += (x - smooth) * 0.08;
 
-    for (let i = 0; i < dataMono.length; i++) {
-      const xSample = dataMono[i] - 128;
-      smoothY += (xSample - smoothY) * 0.05;
-
-      const x = cx + xSample * scale;
-      const y = cy + smoothY * scale;
-      ctx.fillRect(x, y, 1, 1);
-    }
+    ctx.fillRect(
+      cx + x * scale,
+      cy + smooth * scale,
+      1,
+      1
+    );
   }
 }
 </script>
