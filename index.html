@@ -1,86 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Microphone Oscilloscope</title>
-  <style>
-    body {
-      background: black;
-      color: lime;
-      font-family: monospace;
-      text-align: center;
-    }
-    canvas {
-      border: 1px solid lime;
-      margin-top: 10px;
-    }
-    button {
-      background: black;
-      color: lime;
-      border: 1px solid lime;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>Mono XY Oscilloscope</title>
+<style>
+  body {
+    background: black;
+    color: lime;
+    font-family: monospace;
+    text-align: center;
+  }
+  canvas {
+    border: 1px solid lime;
+    margin-top: 10px;
+  }
+  button, input {
+    background: black;
+    color: lime;
+    border: 1px solid lime;
+    padding: 6px;
+    margin: 5px;
+  }
+</style>
 </head>
 <body>
 
-<h1>🎤 Microphone Oscilloscope</h1>
+<h1>🎤 Mono XY Oscilloscope</h1>
 <button id="start">Start Microphone</button>
-<br />
-<canvas id="scope" width="800" height="300"></canvas>
+<br>
+<label>Phase Offset:
+  <input id="phase" type="range" min="1" max="256" value="32">
+</label>
+<br>
+<canvas id="scope" width="600" height="600"></canvas>
 
 <script>
-  const button = document.getElementById("start");
-  const canvas = document.getElementById("scope");
-  const ctx = canvas.getContext("2d");
+const button = document.getElementById("start");
+const canvas = document.getElementById("scope");
+const ctx = canvas.getContext("2d");
+const phaseSlider = document.getElementById("phase");
 
-  let audioCtx, analyser, dataArray;
+let audioCtx, analyser, data;
 
-  button.onclick = async () => {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+button.onclick = async () => {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const source = audioCtx.createMediaStreamSource(stream);
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const source = audioCtx.createMediaStreamSource(stream);
 
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0;
 
-    dataArray = new Uint8Array(analyser.fftSize);
+  data = new Uint8Array(analyser.fftSize);
 
-    source.connect(analyser);
-    draw();
-  };
+  source.connect(analyser);
+  drawXY();
+};
 
-  function draw() {
-    requestAnimationFrame(draw);
+function drawXY() {
+  requestAnimationFrame(drawXY);
 
-    analyser.getByteTimeDomainData(dataArray);
+  analyser.getByteTimeDomainData(data);
 
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "lime";
-    ctx.beginPath();
+  ctx.fillStyle = "lime";
 
-    const sliceWidth = canvas.width / dataArray.length;
-    let x = 0;
+  const phase = Number(phaseSlider.value);
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const scale = 2.5;
 
-    for (let i = 0; i < dataArray.length; i++) {
-      const v = dataArray[i] / 128.0;
-      const y = (v * canvas.height) / 2;
+  for (let i = 0; i < data.length; i++) {
+    const xSample = data[i] - 128;
+    const ySample = data[(i + phase) % data.length] - 128;
 
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    const x = cx + xSample * scale;
+    const y = cy + ySample * scale;
 
-      x += sliceWidth;
-    }
-
-    ctx.lineTo(canvas.width, canvas.height / 2);
-    ctx.stroke();
+    ctx.fillRect(x, y, 1, 1);
   }
+}
 </script>
 
 </body>
